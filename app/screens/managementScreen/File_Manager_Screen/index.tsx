@@ -1,182 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   StyleSheet, 
   View, 
   FlatList, 
   TouchableOpacity, 
   Image,
-  Alert,
-  Modal,
-  ScrollView,
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import * as Sharing from 'expo-sharing';
 
 import { 
   useTheme, 
   Text, 
   Card, 
-  Button, 
-  Input,
-  Header,
-  CodeSyntaxHighlighter
-} from '../../components';
-import * as fileHelper from '../../../../lib/fileHelper';
-import { FileItem } from '../../../../lib/types';
+  NewFolderDialog,
+  MoveFileDialog,
+  PreviewModal
+} from '../../_components';
+import { useFileManager } from '../../_hooks/useFileManager';
 
 export default function FileManagerScreen() {
   const { colors } = useTheme();
 
-  // Navigation states
-  const [currentSubFolder, setCurrentSubFolder] = useState(''); // Empty string is root 'DevSnippets/'
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Preview modal states
-  const [previewModalVisible, setPreviewModalVisible] = useState(false);
-  const [previewFileName, setPreviewFileName] = useState('');
-  const [previewContent, setPreviewContent] = useState('');
-  const [previewLang, setPreviewLang] = useState('javascript');
-
-  // Copy/Move modal states
-  const [moveModalVisible, setMoveModalVisible] = useState(false);
-  const [selectedFileForMove, setSelectedFileForMove] = useState<FileItem | null>(null);
-
-  // New folder modal states
-  const [newFolderModalVisible, setNewFolderModalVisible] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-
-  useEffect(() => {
-    loadDirectoryFiles();
-  }, [currentSubFolder]);
-
-  const loadDirectoryFiles = async () => {
-    setLoading(true);
-    const data = await fileHelper.browseDirectory(currentSubFolder);
-    setFiles(data);
-    setLoading(false);
-  };
-
-  const handleFolderTap = (folderName: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCurrentSubFolder(currentSubFolder ? `${currentSubFolder}/${folderName}` : folderName);
-  };
-
-  const handleNavigateUp = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const parts = currentSubFolder.split('/');
-    parts.pop();
-    setCurrentSubFolder(parts.join('/'));
-  };
-
-  // Preview file action
-  const handleFileTap = async (file: FileItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const ext = file.fileExtension?.toLowerCase();
-    
-    // If it's a screenshot, just show standard share or native view
-    if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') {
-      Alert.alert(
-        file.name,
-        `Image screenshot (${(file.size / 1024).toFixed(1)} KB)`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Share Screenshot", onPress: () => handleShareFile(file.path) }
-        ]
-      );
-      return;
-    }
-
-    // Load and preview code files
-    try {
-      const content = await fileHelper.readFileContent(file.path);
-      setPreviewFileName(file.name);
-      setPreviewContent(content);
-      
-      let lang = 'javascript';
-      if (ext === 'py') lang = 'python';
-      else if (ext === 'json') lang = 'json';
-      else if (ext === 'txt') lang = 'txt';
-      
-      setPreviewLang(lang);
-      setPreviewModalVisible(true);
-    } catch {
-      Alert.alert("Error", "Could not read file contents.");
-    }
-  };
-
-  const handleShareFile = async (path: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(path);
-      } else {
-        Alert.alert("Sharing Unvailable", "Sharing is not supported on this platform.");
-      }
-    } catch (e) {
-      Alert.alert("Error", "Could not share file.");
-    }
-  };
-
-  const handleDeleteFile = (file: FileItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Alert.alert(
-      "Delete Resource",
-      `Are you sure you want to permanently delete "${file.name}"? This file will be removed from device storage.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete Permanently", 
-          style: "destructive",
-          onPress: async () => {
-            await fileHelper.deleteFile(file.path);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            loadDirectoryFiles();
-          }
-        }
-      ]
-    );
-  };
-
-  // Open move/copy controller
-  const handleOpenMoveDialog = (file: FileItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedFileForMove(file);
-    setMoveModalVisible(true);
-  };
-
-  const handleExecuteMove = async (destFolder: string) => {
-    if (!selectedFileForMove) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    try {
-      const filename = selectedFileForMove.name;
-      const targetDir = destFolder ? `${fileHelper.BASE_DIR}${destFolder}/` : fileHelper.BASE_DIR;
-      const destPath = `${targetDir}${filename}`;
-
-      await fileHelper.moveOrCopyFile(selectedFileForMove.path, destPath, 'move');
-      setMoveModalVisible(false);
-      setSelectedFileForMove(null);
-      loadDirectoryFiles();
-    } catch (e) {
-      Alert.alert("Move Failed", "Cannot relocate file to the selected directory.");
-    }
-  };
-
-  const handleCreateNewFolder = async () => {
-    if (!newFolderName.trim()) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    try {
-      await fileHelper.createFolder(newFolderName.trim(), currentSubFolder);
-      setNewFolderModalVisible(false);
-      setNewFolderName('');
-      loadDirectoryFiles();
-    } catch {
-      Alert.alert("Folder Error", "Failed to create directory.");
-    }
-  };
+  // Bind states & actions using our custom hook
+  const {
+    currentSubFolder,
+    files,
+    loading,
+    previewModalVisible,
+    setPreviewModalVisible,
+    previewFileName,
+    previewContent,
+    previewLang,
+    moveModalVisible,
+    setMoveModalVisible,
+    selectedFileForMove,
+    newFolderModalVisible,
+    setNewFolderModalVisible,
+    newFolderName,
+    setNewFolderName,
+    handleFolderTap,
+    handleNavigateUp,
+    handleFileTap,
+    handleShareFile,
+    handleDeleteFile,
+    handleOpenMoveDialog,
+    handleExecuteMove,
+    handleCreateNewFolder
+  } = useFileManager();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -280,96 +151,33 @@ export default function FileManagerScreen() {
       )}
 
       {/* 1. CODE FILE PREVIEW MODAL */}
-      <Modal
-        animationType="slide"
-        transparent={false}
+      <PreviewModal 
         visible={previewModalVisible}
-        onRequestClose={() => setPreviewModalVisible(false)}
-      >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          <Header 
-            title={previewFileName}
-            showBack 
-            onBackPress={() => setPreviewModalVisible(false)}
-          />
-          <ScrollView contentContainerStyle={{ padding: 16 }}>
-            <CodeSyntaxHighlighter code={previewContent} language={previewLang} maxHeight={600} />
-          </ScrollView>
-        </View>
-      </Modal>
+        onClose={() => setPreviewModalVisible(false)}
+        fileName={previewFileName}
+        content={previewContent}
+        language={previewLang}
+      />
 
       {/* 2. MOVE / COPY DIRECTORY DIALOG */}
-      <Modal
-        animationType="fade"
-        transparent={true}
+      <MoveFileDialog 
         visible={moveModalVisible}
-        onRequestClose={() => setMoveModalVisible(false)}
-      >
-        <View style={styles.backdrop}>
-          <Card style={[styles.dialogCard, { backgroundColor: colors.cardBackground }]}>
-            <Text variant="bold" style={{ fontSize: 18, marginBottom: 8 }}>Move File</Text>
-            <Text variant="caption" style={{ marginBottom: 16 }}>
-              Select target destination folder for: "{selectedFileForMove?.name}"
-            </Text>
-            
-            <TouchableOpacity onPress={() => handleExecuteMove('')} style={[styles.dialogItem, { borderBottomColor: colors.border }]}>
-              <Ionicons name="folder" size={20} color="#fbbf24" style={{ marginRight: 10 }} />
-              <Text>Root Directory (DevSnippets/)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => handleExecuteMove('exports')} style={[styles.dialogItem, { borderBottomColor: colors.border }]}>
-              <Ionicons name="folder" size={20} color="#06b6d4" style={{ marginRight: 10 }} />
-              <Text>Exports folder (exports/)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => handleExecuteMove('screenshots')} style={[styles.dialogItem, { borderBottomColor: colors.border }]}>
-              <Ionicons name="folder" size={20} color="#06b6d4" style={{ marginRight: 10 }} />
-              <Text>Screenshots folder (screenshots/)</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => handleExecuteMove('downloads')} style={[styles.dialogItem, { borderBottomColor: colors.border }]}>
-              <Ionicons name="folder" size={20} color="#06b6d4" style={{ marginRight: 10 }} />
-              <Text>Downloads folder (downloads/)</Text>
-            </TouchableOpacity>
-
-            <Button title="Cancel" onPress={() => setMoveModalVisible(false)} variant="secondary" style={{ marginTop: 16 }} />
-          </Card>
-        </View>
-      </Modal>
+        onClose={() => setMoveModalVisible(false)}
+        fileName={selectedFileForMove?.name || ''}
+        onExecuteMove={handleExecuteMove}
+      />
 
       {/* 3. CREATE FOLDER DIALOG */}
-      <Modal
-        animationType="fade"
-        transparent={true}
+      <NewFolderDialog 
         visible={newFolderModalVisible}
-        onRequestClose={() => setNewFolderModalVisible(false)}
-      >
-        <View style={styles.backdrop}>
-          <Card style={[styles.dialogCard, { backgroundColor: colors.cardBackground }]}>
-            <Text variant="bold" style={{ fontSize: 18, marginBottom: 8 }}>New Folder</Text>
-            <Input 
-              placeholder="e.g. scripts"
-              value={newFolderName}
-              onChangeText={setNewFolderName}
-            />
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 }}>
-              <Button 
-                title="Cancel" 
-                onPress={() => {
-                  setNewFolderModalVisible(false);
-                  setNewFolderName('');
-                }} 
-                variant="ghost" 
-                style={{ marginRight: 12 }} 
-              />
-              <Button 
-                title="Create" 
-                onPress={handleCreateNewFolder} 
-              />
-            </View>
-          </Card>
-        </View>
-      </Modal>
+        onClose={() => {
+          setNewFolderModalVisible(false);
+          setNewFolderName('');
+        }}
+        newFolderName={newFolderName}
+        setNewFolderName={setNewFolderName}
+        onCreate={handleCreateNewFolder}
+      />
 
     </View>
   );
@@ -460,25 +268,5 @@ const styles = StyleSheet.create({
   actionBtn: {
     padding: 8,
     marginLeft: 2,
-  },
-  modalContainer: {
-    flex: 1,
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  dialogCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 0,
-  },
-  dialogItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
   }
 });

@@ -6,3 +6,7 @@ export { Button } from './Button';
 export { Header } from './Header';
 export { LanguageBadge, TagBadge } from './Badges';
 export { CodeSyntaxHighlighter } from './CodeSyntaxHighlighter';
+export { NewFolderDialog } from './NewFolderDialog';
+export { MoveFileDialog } from './MoveFileDialog';
+export { PreviewModal } from './PreviewModal';
+export { AiExplanationHub } from './AiExplanationHub';

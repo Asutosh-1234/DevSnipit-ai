@@ -1,17 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
   ScrollView, 
   TouchableOpacity, 
-  Alert, 
   ActivityIndicator,
   Linking
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import * as SecureStore from 'expo-secure-store';
 
 import { 
   useTheme, 
@@ -19,122 +16,33 @@ import {
   Card, 
   Button, 
   Input 
-} from '../../components';
-import { getSnippets, getDbFileStats, getDb } from '../../../../lib/db';
-import * as fileHelper from '../../../../lib/fileHelper';
+} from '../../_components';
+import { useSettings } from '../../_hooks/useSettings';
 
 export default function SettingsScreen() {
   const { theme, colors, setTheme } = useTheme();
 
-  // Settings states
-  const [apiKey, setApiKey] = useState('');
-  const [loadingKey, setLoadingKey] = useState(true);
-  const [savingKey, setSavingKey] = useState(false);
+  // Bind states & actions using our custom hook
+  const {
+    apiKey,
+    setApiKey,
+    loadingKey,
+    savingKey,
+    snippetCount,
+    attachmentCount,
+    attachmentSize,
+    loadStats,
+    handleSaveApiKey,
+    handleClearApiKey,
+    handleResetData
+  } = useSettings();
 
-  // Statistics states
-  const [snippetCount, setSnippetCount] = useState(0);
-  const [attachmentCount, setAttachmentCount] = useState(0);
-  const [attachmentSize, setAttachmentSize] = useState(0);
-
+  // Reload statistics when Settings screen gets focus
   useFocusEffect(
     useCallback(() => {
       loadStats();
-      loadSecureKey();
     }, [])
   );
-
-  const loadStats = async () => {
-    try {
-      const snips = await getSnippets();
-      setSnippetCount(snips.length);
-
-      const stats = await getDbFileStats();
-      setAttachmentCount(stats.count);
-      setAttachmentSize(stats.totalSize);
-    } catch (e) {
-      console.error("Stats fetching error:", e);
-    }
-  };
-
-  const loadSecureKey = async () => {
-    setLoadingKey(true);
-    try {
-      const key = await SecureStore.getItemAsync('GEMINI_API_KEY');
-      if (key) {
-        setApiKey(key);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingKey(false);
-    }
-  };
-
-  const handleSaveApiKey = async () => {
-    if (!apiKey.trim()) {
-      Alert.alert("Input Error", "Please enter a valid API Key.");
-      return;
-    }
-    setSavingKey(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    try {
-      await SecureStore.setItemAsync('GEMINI_API_KEY', apiKey.trim());
-      Alert.alert("Success", "Google Gemini API Key saved securely to device keychain.");
-    } catch {
-      Alert.alert("Error", "Failed to secure API Key.");
-    } finally {
-      setSavingKey(false);
-    }
-  };
-
-  const handleClearApiKey = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await SecureStore.deleteItemAsync('GEMINI_API_KEY');
-      setApiKey('');
-      Alert.alert("Cleared", "API Key removed from secure storage.");
-    } catch {
-      Alert.alert("Error", "Failed to clear key.");
-    }
-  };
-
-  const handleResetData = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Alert.alert(
-      "Reset App Database",
-      "This will permanently delete all snippets, attachments, and files in local storage. This action is irreversible.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Reset Everything", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const database = getDb();
-              // Drop/Truncate tables
-              await database.execAsync('DELETE FROM snippets;');
-              await database.execAsync('DELETE FROM attachments;');
-              
-              // Clear FileSystem directories
-              await fileHelper.deleteFile(fileHelper.SCREENSHOTS_DIR);
-              await fileHelper.deleteFile(fileHelper.EXPORTS_DIR);
-              await fileHelper.deleteFile(fileHelper.DOWNLOADS_DIR);
-
-              // Re-initialize paths and re-seed default templates
-              await fileHelper.initFileSystem();
-              await fileHelper.seedDefaultTemplates();
-
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("Success", "All local application data reset successfully.");
-              loadStats();
-            } catch (e) {
-              Alert.alert("Error", "Reset transaction failed.");
-            }
-          }
-        }
-      ]
-    );
-  };
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -259,15 +167,15 @@ export default function SettingsScreen() {
       <Text variant="bold" style={styles.sectionHeading}>Storage Statistics</Text>
       <Card style={styles.card}>
         <View style={[styles.statRow, { borderBottomColor: colors.border }]}>
-          <Text variant="body">Total Saved Snippets</Text>
+          <Text variant="body" style={{ color: colors.text }}>Total Saved Snippets</Text>
           <Text style={{ fontWeight: '700', color: colors.primary }}>{snippetCount}</Text>
         </View>
         <View style={[styles.statRow, { borderBottomColor: colors.border }]}>
-          <Text variant="body">Total Linked Media Files</Text>
+          <Text variant="body" style={{ color: colors.text }}>Total Linked Media Files</Text>
           <Text style={{ fontWeight: '700', color: colors.accent }}>{attachmentCount}</Text>
         </View>
         <View style={styles.statRow}>
-          <Text variant="body">Total File Space Used</Text>
+          <Text variant="body" style={{ color: colors.text }}>Total File Space Used</Text>
           <Text style={{ fontWeight: '700', color: colors.success }}>{formatSize(attachmentSize)}</Text>
         </View>
       </Card>
@@ -276,7 +184,7 @@ export default function SettingsScreen() {
       <Text variant="bold" style={[styles.sectionHeading, { color: colors.danger }]}>Danger Zone</Text>
       <Card style={[styles.card, { borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
         <Text variant="caption" style={{ marginBottom: 12 }}>
-          Relocate directory structures, purge memory frames, and clean local offline SQLite relational databases permanently.
+          Purge memory frames, and clean local offline SQLite relational databases permanently.
         </Text>
         <Button 
           title="Reset Application Workspace" 

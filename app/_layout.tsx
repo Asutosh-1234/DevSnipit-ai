@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
-import { ThemeProvider } from "./screens/components";
 import { StatusBar } from "expo-status-bar";
-import { useTheme } from "./screens/components";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ThemeProvider, useTheme } from "./screens/_components";
 
 function AppStatusBar() {
   const { colors } = useTheme();
@@ -10,9 +10,11 @@ function AppStatusBar() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <AppStatusBar />
-      <Stack screenOptions={{ headerShown: false }} />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AppStatusBar />
+        <Stack screenOptions={{ headerShown: false }} />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

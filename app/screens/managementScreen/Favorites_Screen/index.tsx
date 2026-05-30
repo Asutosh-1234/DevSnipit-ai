@@ -17,7 +17,7 @@ import {
   Input, 
   LanguageBadge, 
   TagBadge 
-} from '../../components';
+} from '../../_components';
 import { getSnippets, toggleFavoriteSnippet } from '../../../../lib/db';
 import { Snippet } from '../../../../lib/types';
 

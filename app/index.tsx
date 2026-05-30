@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, SafeAreaView, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-import { useTheme, Text } from './screens/components';
+import { useTheme, Text } from './screens/_components';
 import { initDb } from '../lib/db';
 import { seedDefaultTemplates } from '../lib/fileHelper';
 
